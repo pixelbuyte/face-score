@@ -311,7 +311,7 @@ export function ReportPage() {
       </Card>
 
       {/* ─────────── Metric grid ─────────── */}
-      <div>
+      <div id="metric-breakdown" className="scroll-mt-24">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold text-white">Metric breakdown</h2>
           <span className="text-xs text-foreground/45">{METRIC_CONFIG.length} measurements</span>

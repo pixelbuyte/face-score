@@ -1,6 +1,20 @@
 node_modules/
 dist/
 .env
+.env.local
 *.local
+
+# Local data and model artifacts (never push the dataset / weights)
 data/
+models/*.pth
+models/*.onnx
 SCUT-FBP5500_v2.1.zip
+
+# Python local env / caches
+.venv/
+__pycache__/
+*.py[cod]
+
+# Tooling
+.claude/
+.vercel/
