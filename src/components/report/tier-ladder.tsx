@@ -3,7 +3,8 @@ import { ArrowUp, ChevronDown, ChevronRight, Info, ListChecks, Sparkles } from "
 import { useMemo, useState } from "react";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
-import { ALL_TIERS, nextTierDelta, pslFromScore, type Tier } from "@/lib/faceAnalysis";
+import { ALL_TIERS, nextTierDelta, type Tier } from "@/lib/faceAnalysis";
+import { asPercent, nextTierPlainParts, pointsVsTypical } from "@/lib/scorePlainLanguage";
 
 type TonePalette = {
   text: string;
@@ -92,7 +93,10 @@ export function TierBadge({ tier, score }: { tier: Tier; score: number }) {
         <span className={`font-display text-base font-semibold ${tone.text}`}>{tier.short}</span>
         <span className="text-[11px] text-foreground/55">{tier.long}</span>
       </div>
-      <span className="text-[11px] font-mono text-foreground/55">PSL {pslFromScore(score).toFixed(1)}</span>
+      <span className="text-[11px] text-foreground/55">
+        <span className="font-mono font-semibold text-white/90">{Math.round(score)}%</span>
+        <span className="text-foreground/45"> total</span>
+      </span>
     </motion.div>
   );
 }
@@ -181,9 +185,42 @@ function MiniBellCurve({ score, color }: { score: number; color: Tier["color"] }
           style={{ background: dotColor, filter: "blur(8px)" }}
         />
         <p className={`mt-1 whitespace-nowrap text-center text-[10px] font-semibold uppercase tracking-wider ${tone.text}`}>
-          You · {score}
+          You · {score}%
         </p>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Next tier — plain language + %                                     */
+/* ------------------------------------------------------------------ */
+
+function NextTierHint({
+  score,
+  delta,
+  next,
+  toneText,
+}: {
+  score: number;
+  delta: number;
+  next: Tier;
+  toneText: string;
+}) {
+  const parts = nextTierPlainParts(score, delta, next.min);
+  const cur = Math.round(Math.min(100, Math.max(0, score)));
+  const need = Math.round(Math.min(100, next.min));
+  return (
+    <div className="relative mt-4 flex gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-xs">
+      <ArrowUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
+      <p className="leading-relaxed text-foreground/75">
+        <strong className="text-white">{parts.headline}</strong>
+        <span className="text-foreground/50"> — </span>
+        You&apos;re at <strong className="text-white">{cur}%</strong> overall; the next band starts around{" "}
+        <strong className="text-white">{need}%</strong>.{" "}
+        <span className={toneText}>{next.short}</span>
+        <span className="text-foreground/45"> ({next.long})</span>
+      </p>
     </div>
   );
 }
@@ -192,21 +229,12 @@ function MiniBellCurve({ score, color }: { score: number; color: Tier["color"] }
 /*  Active tier callout                                                */
 /* ------------------------------------------------------------------ */
 
-function ActiveTierCallout({
-  score,
-  tier,
-  percentile,
-  sd,
-}: {
-  score: number;
-  tier: Tier;
-  percentile: number;
-  sd: number;
-}) {
+function ActiveTierCallout({ score, tier, percentile }: { score: number; tier: Tier; percentile: number }) {
   const tone = TONE[tier.color];
   const { delta, next } = nextTierDelta(score);
   const tierProgress = Math.min(100, Math.max(0, ((score - tier.min) / (tier.max - tier.min)) * 100));
   const top = Math.max(1, Math.min(99, 100 - percentile));
+  const vsTypical = pointsVsTypical(score);
 
   return (
     <div className={`relative overflow-hidden rounded-3xl border ${tone.border} bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent p-6 ring-1 ${tone.ring} ${tone.glow}`}>
@@ -232,19 +260,19 @@ function ActiveTierCallout({
             <strong className="text-white">{tier.blurb}</strong> {tier.context}
           </p>
           <p className="text-xs leading-relaxed text-foreground/55">
-            This puts you above approximately{" "}
-            <strong className="text-white">{percentile}%</strong> of people in the SCUT-FBP5500 reference
-            dataset.
+            You score <strong className="text-white">higher than about {percentile}%</strong> of people in our
+            reference photo set — that means you rank in the <strong className="text-white">top {top}%</strong> on
+            this model.
           </p>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center md:grid-cols-1 md:gap-3">
-          <Stat label="Overall score" value={`${score}`} suffix="/ 100" tone={tone.text} large />
-          <Stat label="Global percentile" value={`Top ${top}%`} tone={tone.text} />
+          <Stat label="Your total score" value={asPercent(score)} suffix="" tone={tone.text} large />
+          <Stat label="Rough rank" value={`Top ${top}%`} sub="of faces in the sample" tone={tone.text} />
           <Stat
-            label="Standard dev."
-            value={`${sd >= 0 ? "+" : ""}${sd.toFixed(1)} SD`}
-            sub={sd >= 0 ? "above mean" : "below mean"}
+            label="vs typical (58%)"
+            value={`${vsTypical >= 0 ? "+" : ""}${vsTypical}%`}
+            sub="Most people sit near 58% on this scale"
             tone={tone.text}
           />
         </div>
@@ -253,9 +281,9 @@ function ActiveTierCallout({
       {/* Tier progress bar */}
       <div className="relative mt-5 space-y-1.5">
         <div className="flex items-baseline justify-between text-[10px] uppercase tracking-[0.18em] text-foreground/45">
-          <span>{tier.min} pts</span>
-          <span className={tone.text}>position inside tier</span>
-          <span>{tier.max} pts</span>
+          <span>{tier.min}%</span>
+          <span className={tone.text}>your progress in this tier</span>
+          <span>{tier.max}%</span>
         </div>
         <div className="relative h-3 overflow-hidden rounded-full bg-white/[0.06]">
           <motion.div
@@ -276,14 +304,7 @@ function ActiveTierCallout({
       </div>
 
       {next && (
-        <div className="relative mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs">
-          <ArrowUp className="h-3.5 w-3.5 text-emerald-300" />
-          <span className="text-foreground/75">
-            <strong className="text-white">{delta} pts</strong> to reach{" "}
-            <span className={tone.text}>{next.short}</span>
-            <span className="text-foreground/45"> ({next.long})</span>
-          </span>
-        </div>
+        <NextTierHint score={score} delta={delta} next={next} toneText={tone.text} />
       )}
     </div>
   );
@@ -355,11 +376,11 @@ function MethodologyDetails() {
                 Neural-style prior trained on the public SCUT-FBP5500 dataset of real human ratings.
               </MethodRow>
               <MethodRow weight="25%" color="bg-amber-300" label="Personal calibration">
-                Adjustment derived from your pairwise calibration votes (capped at +8 pts).
+                A small bump from your A/B photo picks (up to +8 on the 0–100 score).
               </MethodRow>
               <li className="pt-2 text-[11px] text-foreground/45">
-                Raw composite is normalised onto a population curve with μ = 58, σ = 14, then mapped to
-                percentile and standard deviation.
+                Scores are compared to a bell-shaped curve where the busiest part is around 58% — then we turn
+                that into percentiles (“higher than X% of people”) and tier labels.
               </li>
             </ul>
           </motion.div>
@@ -437,7 +458,7 @@ function FullLadder({ score, tier }: { score: number; tier: Tier }) {
               )}
             </div>
             <span className="text-right font-mono text-[10px] text-foreground/45">
-              {t.min}–{t.max - 1}
+              {t.min}–{t.max - 1}%
             </span>
           </li>
         );
@@ -454,12 +475,13 @@ type Props = {
   score: number;
   tier: Tier;
   percentile: number;
-  sd: number;
+  /** @deprecated No longer displayed; kept for call-site compatibility. */
+  sd?: number;
   /** Optional anchor id to scroll to when "View full breakdown" is clicked. */
   scrollTargetId?: string;
 };
 
-export function AttractivenessTierCard({ score, tier, percentile, sd, scrollTargetId }: Props) {
+export function AttractivenessTierCard({ score, tier, percentile, scrollTargetId }: Props) {
   const [showInfo, setShowInfo] = useState(false);
   const tone = TONE[tier.color];
 
@@ -529,14 +551,14 @@ export function AttractivenessTierCard({ score, tier, percentile, sd, scrollTarg
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground/45">
             Population distribution · n = 5,500
           </p>
-          <p className="text-[10px] font-mono text-foreground/55">μ = 58 · σ = 14</p>
+          <p className="text-[10px] text-foreground/55">Most scores bunch around 58%</p>
         </div>
         <MiniBellCurve score={score} color={tier.color} />
       </div>
 
       {/* Active tier callout */}
       <div className="relative mb-6">
-        <ActiveTierCallout score={score} tier={tier} percentile={percentile} sd={sd} />
+        <ActiveTierCallout score={score} tier={tier} percentile={percentile} />
       </div>
 
       {/* Full ladder */}

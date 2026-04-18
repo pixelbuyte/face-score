@@ -29,8 +29,7 @@ type Props = {
 
 export function ScoreDistributionChart({ userScore, className }: Props) {
   const data = useMemo(() => bellCurve(58, 14), []);
-  const z = ((userScore - 58) / 14).toFixed(2);
-  const sign = userScore >= 58 ? "+" : "";
+  const vsTypical = Math.round(userScore - 58);
 
   return (
     <div className={className}>
@@ -40,11 +39,12 @@ export function ScoreDistributionChart({ userScore, className }: Props) {
             Population distribution
           </p>
           <p className="mt-0.5 text-xs text-foreground/55">
-            SCUT-FBP5500 rater pool · n = 5,500 photos
+            Based on thousands of rated portrait photos (research dataset)
           </p>
         </div>
-        <p className="text-xs font-mono text-amber-300/85">
-          z = {sign}{z}
+        <p className="text-right text-[11px] text-amber-200/90">
+          {vsTypical >= 0 ? "+" : ""}
+          {vsTypical}% vs typical (58%)
         </p>
       </div>
       <div className="h-52 w-full">
@@ -71,8 +71,8 @@ export function ScoreDistributionChart({ userScore, className }: Props) {
                 borderRadius: 12,
                 fontSize: 12,
               }}
-              labelFormatter={(v) => `Score ~${v}`}
-              formatter={(v: unknown) => [typeof v === "number" ? v.toFixed(3) : String(v), "density"]}
+              labelFormatter={(v) => `Score about ${v}%`}
+              formatter={(v: unknown) => [typeof v === "number" ? v.toFixed(2) : String(v), "how common"]}
             />
             <ReferenceLine x={58} stroke="rgba(255,255,255,0.25)" strokeDasharray="2 4" />
             <ReferenceLine
@@ -91,9 +91,9 @@ export function ScoreDistributionChart({ userScore, className }: Props) {
         </ResponsiveContainer>
       </div>
       <div className="mt-2 flex items-center justify-between text-[10px] text-foreground/40">
-        <span>← lower</span>
-        <span>μ = 58</span>
-        <span>higher →</span>
+        <span>← lower scores</span>
+        <span>most people ~58%</span>
+        <span>higher scores →</span>
       </div>
     </div>
   );

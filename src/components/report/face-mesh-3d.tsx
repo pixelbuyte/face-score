@@ -8,8 +8,9 @@ import { TierBadge } from "@/components/report/tier-ladder";
 import { Button } from "@/components/ui/button";
 import { buildFaceMesh3DData } from "@/lib/faceMesh3d";
 import type { Tier } from "@/lib/faceAnalysis";
-import { FACE_MESH_IDX } from "@/lib/faceAnalysis";
-import { Eye, Grid3x3, Layers, Move, Sparkles, Triangle } from "lucide-react";
+import { FACE_MESH_IDX, nextTierDelta } from "@/lib/faceAnalysis";
+import { nextTierPlainParts } from "@/lib/scorePlainLanguage";
+import { ArrowUp, Eye, Grid3x3, Layers, Move, Sparkles, Triangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -316,6 +317,12 @@ export function FaceMeshAnalysisSection({
   const showPts = showPoints && !wireframeOnly;
   const fullEdgeMesh = !wireframeOnly;
 
+  const { delta, next } = useMemo(() => nextTierDelta(overallScore), [overallScore]);
+  const nextPlain = useMemo(() => {
+    if (!next) return null;
+    return nextTierPlainParts(overallScore, delta, next.min);
+  }, [overallScore, delta, next]);
+
   return (
     <div
       className={cn(
@@ -331,15 +338,25 @@ export function FaceMeshAnalysisSection({
             </p>
             <h2 className="mt-1 font-display text-xl font-semibold text-white md:text-2xl">Interactive 3D Face Mesh</h2>
             <p className="mt-2 max-w-xl text-xs leading-relaxed text-foreground/50">
-              All {landmarks.length} MediaPipe landmarks (468 face mesh + refined iris) as a centered point cloud with
-              dense tesselation edges. Drag to orbit, scroll to zoom. Gold lines = facial thirds; cyan dashed = sagittal
-              midline.
+              Your face as hundreds of dots in 3D (photo landmarks), with lines showing structure. Drag to spin the
+              model; scroll to zoom. Gold lines = upper/middle/lower thirds; cyan dashed = center line of the face.
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-start gap-2 md:items-end">
             <TierBadge tier={tier} score={overallScore} />
+            {next && nextPlain && (
+              <div className="flex max-w-[min(100%,320px)] items-start gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-[11px] leading-snug text-foreground/75 md:items-center md:text-right">
+                <ArrowUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300 md:mt-0" aria-hidden />
+                <span>
+                  <strong className="text-white">{nextPlain.headline}</strong>
+                  <span className="text-foreground/55"> — {nextPlain.detail} </span>
+                  <strong className="text-violet-200">{next.short}</strong>
+                  <span className="text-foreground/45"> ({next.long})</span>
+                </span>
+              </div>
+            )}
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-mono text-[11px] text-foreground/55">
-              Overall {overallScore.toFixed(0)} · {tier.short}{" "}
+              Score {Math.round(overallScore)}% · {tier.short}{" "}
               <span className="text-foreground/40">({tier.long})</span>
             </span>
           </div>

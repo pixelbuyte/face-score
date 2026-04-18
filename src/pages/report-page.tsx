@@ -70,8 +70,7 @@ export function ReportPage() {
   const overall = pct(result.overallScore, 0, 100);
   const percentile = pct(result.percentileHint, 1, 99);
   const topBracket = Math.max(1, Math.min(50, 100 - percentile));
-  const sd = result.sdAboveMean;
-  const sdLabel = `${sd >= 0 ? "+" : ""}${sd.toFixed(1)} SD`;
+  const vsTypicalPct = Math.round(overall - 58);
 
   const harmonyScore = metrics.harmony.score;
   const { delta: ptsToNextTier, next: nextTier } = nextTierDelta(overall);
@@ -178,19 +177,20 @@ export function ReportPage() {
                   transition={{ delay: 0.15, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                   className="font-display text-7xl font-bold tracking-tighter text-white drop-shadow-[0_0_24px_rgba(167,139,250,0.45)] md:text-[5.5rem]"
                 >
-                  {overall}
+                  {overall}%
                 </motion.span>
-                <span className="text-foreground/40">/ 100</span>
+                <span className="text-foreground/40">out of 100%</span>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                 <span className="rounded-full bg-amber-500/15 px-2.5 py-1 font-medium text-amber-200">
                   Top {topBracket}%
                 </span>
                 <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 font-medium text-emerald-200">
-                  {sdLabel} above average
+                  {vsTypicalPct >= 0 ? "+" : ""}
+                  {vsTypicalPct}% vs typical (58%)
                 </span>
                 <span className="rounded-full bg-violet-500/15 px-2.5 py-1 text-violet-200">
-                  Harmony {harmonyScore}
+                  Face geometry {harmonyScore}%
                 </span>
               </div>
               <div className="mt-4">
@@ -200,32 +200,28 @@ export function ReportPage() {
             <CardContent className="relative space-y-4 pt-2">
               <p className="text-sm text-foreground/65">
                 {overall >= 80
-                  ? "Multiple facial cues align with the high-attractiveness cluster in human-rated datasets."
+                  ? "Your result lines up with faces people often rate highly in research photo sets."
                   : overall >= 65
-                    ? "A balanced face that scores above the population mean across most cues."
-                    : "Your composite sits near the population mean. Individual metrics vary widely — see the breakdown."}
+                    ? "You score above what most people get — a solid, balanced result across the main measurements."
+                    : "You’re close to what most people score. The detailed metrics below show where you stand out."}
               </p>
               <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2">
-                  <p className="text-foreground/45">Geometry</p>
-                  <p className="mt-0.5 font-display text-base text-white">{harmonyScore}</p>
+                  <p className="text-foreground/45">Face geometry</p>
+                  <p className="mt-0.5 font-display text-base text-white">{harmonyScore}%</p>
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2">
-                  <p className="text-foreground/45">Neural prior</p>
-                  <p className="mt-0.5 font-display text-base text-white">
-                    {pct(result.modelScorePlaceholder)}
-                  </p>
+                  <p className="text-foreground/45">Photo model</p>
+                  <p className="mt-0.5 font-display text-base text-white">{pct(result.modelScorePlaceholder)}%</p>
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2">
-                  <p className="text-foreground/45">Calibration</p>
-                  <p className="mt-0.5 font-display text-base text-white">
-                    +{getCalibrationBoost()}
-                  </p>
+                  <p className="text-foreground/45">Your picks</p>
+                  <p className="mt-0.5 font-display text-base text-white">+{getCalibrationBoost()}%</p>
                 </div>
               </div>
               <p className="text-[11px] leading-relaxed text-foreground/45">
-                Score = 0.52 × neural prior + 0.48 × geometric harmony + calibration boost. Calibration boost
-                comes from your pairwise votes (capped at +8).
+                Total score blends the photo model (~half), face measurements from your landmarks (~half), plus a
+                small bonus from your calibration picks (up to +8%). Everything is shown on a 0–100% scale.
               </p>
             </CardContent>
           </Card>
@@ -242,7 +238,6 @@ export function ReportPage() {
           score={overall}
           tier={result.tier}
           percentile={percentile}
-          sd={sd}
           scrollTargetId="metric-breakdown"
         />
       </motion.div>
@@ -268,14 +263,17 @@ export function ReportPage() {
       <Card className="glass-panel">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Population score distribution</CardTitle>
-          <CardDescription>How your composite sits on an illustrative SCUT-FBP5500–shaped curve</CardDescription>
+          <CardDescription>Where your % score sits on a typical “bell curve” of faces</CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
           <ScoreDistributionChart userScore={overall} />
           <p className="mt-3 text-xs leading-relaxed text-foreground/55">
-            You rank in the <strong className="text-white">top {topBracket}%</strong> of this illustrative
-            curve, sitting <strong className="text-amber-200">{sdLabel}</strong> from the population mean (μ =
-            58, σ = 14). Curve is calibrated against the SCUT-FBP5500 rater distribution.
+            You land in the <strong className="text-white">top {topBracket}%</strong> on this curve. Most people
+            cluster around <strong className="text-white">58%</strong>; you&apos;re{" "}
+            <strong className="text-amber-200">
+              {overall >= 58 ? `${overall - 58}% above` : `${58 - overall}% below`}
+            </strong>{" "}
+            that typical mark on the 0–100% scale.
           </p>
         </CardContent>
       </Card>

@@ -48,7 +48,7 @@ export function HistoryPage() {
       <ul className="grid gap-4 md:grid-cols-2">
         {reports.map((r, i) => {
           const top = Math.max(1, 100 - r.percentileHint);
-          const sd = r.sdAboveMean;
+          const vsTyp = Math.round(r.overallScore - 58);
           return (
             <motion.li
               key={r.id}
@@ -78,7 +78,7 @@ export function HistoryPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-display text-3xl font-semibold leading-none text-white">
-                            {r.overallScore}
+                            {r.overallScore}%
                           </p>
                           {r.tier && (
                             <span className="rounded-md bg-violet-500/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-100 backdrop-blur">
@@ -87,8 +87,8 @@ export function HistoryPage() {
                           )}
                         </div>
                         <p className="mt-1 text-[11px] text-foreground/65">
-                          Top {top}% · {sd >= 0 ? "+" : ""}
-                          {sd.toFixed(1)} SD · PSL {(r.overallScore / 10).toFixed(1)}
+                          Top {top}% · {vsTyp >= 0 ? "+" : ""}
+                          {vsTyp}% vs typical (58%)
                         </p>
                       </div>
                       <ChevronRight className="h-5 w-5 text-white/70 transition group-hover:translate-x-0.5 group-hover:text-white" />
