@@ -1115,6 +1115,25 @@ export async function detectLandmarksForImage(img: HTMLImageElement): Promise<No
   return lm && lm.length >= MIN_LANDMARKS ? lm : null;
 }
 
+/**
+ * Cap on the long edge of the analysis canvas, in pixels.
+ *
+ * MediaPipe's face landmarker model itself runs at 256×256 internally, so
+ * 1600 leaves us a huge safety margin while protecting mobile Safari from
+ * its ~16 megapixel canvas ceiling and ~380 MB JS heap. A 12 MP iPhone
+ * photo (4032×3024) gets scaled down to 1600×1200 ≈ 2 MP — about 6× less
+ * memory and ~3× faster decode + landmark detection on phones.
+ */
+const MAX_ANALYSIS_EDGE = 1600;
+
+function computeFitDims(srcW: number, srcH: number, maxEdge: number): { w: number; h: number } {
+  if (srcW <= 0 || srcH <= 0) return { w: srcW, h: srcH };
+  const longest = Math.max(srcW, srcH);
+  if (longest <= maxEdge) return { w: srcW, h: srcH };
+  const k = maxEdge / longest;
+  return { w: Math.max(1, Math.round(srcW * k)), h: Math.max(1, Math.round(srcH * k)) };
+}
+
 export async function buildCanvasAndLandmarksFromFile(file: File): Promise<{
   canvas: HTMLCanvasElement;
   landmarks: NormalizedLandmark[] | null;
@@ -1123,14 +1142,34 @@ export async function buildCanvasAndLandmarksFromFile(file: File): Promise<{
   let objectUrl: string | null = null;
 
   try {
-    const bitmap = await createImageBitmap(file);
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
+    // `imageOrientation: "from-image"` makes the bitmap respect EXIF rotation
+    // (critical for photos straight from an iPhone or Android camera). It's
+    // supported on Chromium 80+, Firefox 77+, Safari 15.4+ — older browsers
+    // throw, in which case we fall through to the <img> path below.
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+      bitmap = await createImageBitmap(file);
+    }
+
+    if (bitmap.width < 32 || bitmap.height < 32) {
+      bitmap.close();
+      throw new Error("Image is too small.");
+    }
+
+    const { w, h } = computeFitDims(bitmap.width, bitmap.height, MAX_ANALYSIS_EDGE);
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas not supported");
-    ctx.drawImage(bitmap, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, w, h);
     bitmap.close();
   } catch {
+    // Fallback path: <img> respects EXIF orientation on Safari iOS 13.4+ and
+    // Chrome 81+ when drawn into a canvas, so this stays mobile-correct.
     objectUrl = URL.createObjectURL(file);
     const img = new Image();
     await new Promise<void>((resolve, reject) => {
@@ -1148,11 +1187,14 @@ export async function buildCanvasAndLandmarksFromFile(file: File): Promise<{
         /* ignore */
       }
     }
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
+    const { w, h } = computeFitDims(img.naturalWidth, img.naturalHeight, MAX_ANALYSIS_EDGE);
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas not supported");
-    ctx.drawImage(img, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
   } finally {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
@@ -1174,4 +1216,31 @@ export function canvasToJpegDataUrl(canvas: HTMLCanvasElement, quality = 0.88): 
       return "";
     }
   }
+}
+
+/**
+ * Encode a canvas to a smaller JPEG suitable for `localStorage` (mobile
+ * Safari has a ~5 MB origin quota and each saved report stores one of
+ * these). Downscales to `maxEdge` (default 720 px long edge) and uses a
+ * lower JPEG quality so a typical preview comes out at ~80–150 KB.
+ */
+export function canvasToStorageJpegDataUrl(
+  canvas: HTMLCanvasElement,
+  maxEdge = 720,
+  quality = 0.78,
+): string {
+  if (canvas.width === 0 || canvas.height === 0) return "";
+  const { w, h } = computeFitDims(canvas.width, canvas.height, maxEdge);
+  if (w === canvas.width && h === canvas.height) {
+    return canvasToJpegDataUrl(canvas, quality);
+  }
+  const small = document.createElement("canvas");
+  small.width = w;
+  small.height = h;
+  const ctx = small.getContext("2d");
+  if (!ctx) return canvasToJpegDataUrl(canvas, quality);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(canvas, 0, 0, w, h);
+  return canvasToJpegDataUrl(small, quality);
 }

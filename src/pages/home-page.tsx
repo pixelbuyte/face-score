@@ -18,7 +18,7 @@ import { PRIVACY_LONG } from "@/constants/privacy";
 import {
   analyzeFromLandmarks,
   buildCanvasAndLandmarksFromFile,
-  canvasToJpegDataUrl,
+  canvasToStorageJpegDataUrl,
   drawFaceOverlay,
   getFaceLandmarker,
 } from "@/lib/faceAnalysis";
@@ -77,20 +77,26 @@ export function HomePage() {
           return;
         }
 
-        const maxW = 920;
-        const scale = Math.min(1, maxW / full.width);
-        const cw = Math.round(full.width * scale);
-        const ch = Math.round(full.height * scale);
+        // Build an overlay preview canvas at a touch-friendly size. Long
+        // edge is capped at 920 px so the saved data URL stays small enough
+        // for mobile Safari's ~5 MB localStorage quota.
+        const maxEdge = 920;
+        const longest = Math.max(full.width, full.height);
+        const scale = Math.min(1, maxEdge / longest);
+        const cw = Math.max(1, Math.round(full.width * scale));
+        const ch = Math.max(1, Math.round(full.height * scale));
         const preview = document.createElement("canvas");
         preview.width = cw;
         preview.height = ch;
         const ctx = preview.getContext("2d");
         if (!ctx) throw new Error("Canvas not supported");
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.drawImage(full, 0, 0, cw, ch);
         drawFaceOverlay(ctx, landmarks, cw, ch);
 
-        let imageDataUrl = canvasToJpegDataUrl(preview);
-        if (!imageDataUrl) imageDataUrl = canvasToJpegDataUrl(full);
+        let imageDataUrl = canvasToStorageJpegDataUrl(preview);
+        if (!imageDataUrl) imageDataUrl = canvasToStorageJpegDataUrl(full);
 
         const boost = getCalibrationBoost();
         const result = analyzeFromLandmarks(landmarks, full, boost);
