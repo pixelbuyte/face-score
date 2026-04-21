@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { History, Home, Lock, SlidersHorizontal, Sparkles } from "lucide-react";
+import { History, Home, Lock, Route, SlidersHorizontal, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { PRIVACY_SHORT } from "@/constants/privacy";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               icon={<History className="h-3.5 w-3.5 opacity-70" />}
               label="History"
               badge={reports.length > 0 ? reports.length : undefined}
+            />
+            <NavButton
+              active={view === "planner"}
+              onClick={() => setView("planner")}
+              icon={<Route className="h-3.5 w-3.5 opacity-70" />}
+              label="Planner"
             />
           </nav>
         </div>

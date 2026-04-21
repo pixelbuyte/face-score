@@ -5,9 +5,9 @@ import { CALIBRATION_TARGET_VOTES } from "@/constants/calibration-faces";
 import type { AnalysisResult, FaceMetrics, Tier, TraitTier } from "@/lib/faceAnalysis";
 import { buildTraitTiers, tierFromScore } from "@/lib/faceAnalysis";
 
-export type AppView = "home" | "calibrate" | "report" | "history";
+export type AppView = "home" | "calibrate" | "report" | "history" | "planner";
 
-export const VALID_VIEWS = new Set<AppView>(["home", "calibrate", "report", "history"]);
+export const VALID_VIEWS = new Set<AppView>(["home", "calibrate", "report", "history", "planner"]);
 
 export type CalibrationVote = {
   id: string;
@@ -35,11 +35,22 @@ export type LastAnalysis = {
   landmarks: NormalizedLandmark[];
 };
 
+export type PlannerMileEntry = {
+  id: string;
+  routeId: string;
+  provider: "AllTrails" | "Google Maps" | "Mapbox" | "Geoapify";
+  routeName: string;
+  miles: number;
+  safetyRating: number;
+  createdAt: number;
+};
+
 type State = {
   view: AppView;
   calibrationVotes: CalibrationVote[];
   reports: SavedReport[];
   lastAnalysis: LastAnalysis | null;
+  plannerMilesLog: PlannerMileEntry[];
   setView: (v: AppView) => void;
   addCalibrationVote: (v: Omit<CalibrationVote, "id">) => void;
   resetCalibration: () => void;
@@ -51,6 +62,9 @@ type State = {
   saveReportFromLast: () => string | null;
   deleteReport: (id: string) => void;
   openReport: (id: string) => void;
+  addPlannerMiles: (entry: Omit<PlannerMileEntry, "id" | "createdAt">) => void;
+  removePlannerMiles: (id: string) => void;
+  clearPlannerMiles: () => void;
 };
 
 function uid() {
@@ -64,6 +78,7 @@ export const useAppStore = create<State>()(
       calibrationVotes: [],
       reports: [],
       lastAnalysis: null,
+      plannerMilesLog: [],
 
       setView: (view) => set({ view }),
 
@@ -135,12 +150,25 @@ export const useAppStore = create<State>()(
           },
         });
       },
+
+      addPlannerMiles: (entry) =>
+        set((s) => ({
+          plannerMilesLog: [{ ...entry, id: uid(), createdAt: Date.now() }, ...s.plannerMilesLog],
+        })),
+
+      removePlannerMiles: (id) =>
+        set((s) => ({
+          plannerMilesLog: s.plannerMilesLog.filter((x) => x.id !== id),
+        })),
+
+      clearPlannerMiles: () => set({ plannerMilesLog: [] }),
     }),
     {
       name: "areum-local-v3",
       partialize: (s) => ({
         calibrationVotes: s.calibrationVotes,
         reports: s.reports,
+        plannerMilesLog: s.plannerMilesLog,
       }),
       onRehydrateStorage: () => (state, err) => {
         if (err) console.warn("areum: storage rehydrate", err);
