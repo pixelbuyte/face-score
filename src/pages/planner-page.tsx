@@ -1,5 +1,5 @@
 import { MapPin, Route, Shield, Trash2, Trophy } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/store/use-app-store";
@@ -406,7 +406,7 @@ function MetricCard({ label, value, hint }: { label: string; value: string; hint
   );
 }
 
-function Pill({ children }: { children: string }) {
+function Pill({ children }: { children: ReactNode }) {
   return (
     <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium">
       {children}
