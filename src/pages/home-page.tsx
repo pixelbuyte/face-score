@@ -118,6 +118,26 @@ export function HomePage() {
     [finishAnalysis, getCalibrationBoost],
   );
 
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      if (busy) return;
+      const items = event.clipboardData?.items;
+      if (!items || items.length === 0) return;
+
+      const imageItem = Array.from(items).find(
+        (item) => item.kind === "file" && item.type.startsWith("image/"),
+      );
+      const file = imageItem?.getAsFile() ?? null;
+      if (!file) return;
+
+      event.preventDefault();
+      void processFile(file);
+    };
+
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [busy, processFile]);
+
   const calibrated = isCalibrationComplete();
   const calProgress = Math.min(100, (calibrationVotes.length / CALIBRATION_TARGET_VOTES) * 100);
 
@@ -194,7 +214,7 @@ export function HomePage() {
         <ActionCard
           title="Upload photo & get report"
           subtitle="Detailed scientific facial analysis"
-          description="Drop a clear front-facing portrait. Get an Areum-style report: 9 metrics, 3D mesh, distribution chart, and personalised tips."
+          description="Drop, choose, or paste a clear front-facing portrait. Get an Areum-style report: 9 metrics, 3D mesh, distribution chart, and personalised tips."
           cta={
             <span className="inline-flex items-center gap-2">
               Upload photo <ArrowRight className="h-4 w-4" />
@@ -290,6 +310,11 @@ export function HomePage() {
                     Use camera
                   </Button>
                 </div>
+              )}
+              {!busy && (
+                <p className="text-center text-[11px] uppercase tracking-[0.18em] text-foreground/45">
+                  Or paste a copied photo with Ctrl/Cmd + V
+                </p>
               )}
 
               <input
