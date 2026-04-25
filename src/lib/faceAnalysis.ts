@@ -328,10 +328,31 @@ function calcMidface(thirds: ThirdsBreakdown): Metric {
 
 function calcCanthalTilt(lm: NormalizedLandmark[]): Metric {
   const g = (i: number) => lm[i];
-  // Positive canthal tilt = outer corners higher than inner corners.
-  const leftTilt = -tiltDeg(g(IDX.leftEyeInner), g(IDX.leftEyeOuter));
-  const rightTilt = tiltDeg(g(IDX.rightEyeInner), g(IDX.rightEyeOuter));
-  const tilt = (leftTilt + rightTilt) / 2;
+  const toAcute = (angle: number) => {
+    const n = normalizeAngleDeg(angle);
+    if (n > 90) return n - 180;
+    if (n < -90) return n + 180;
+    return n;
+  };
+  const center = (a: NormalizedLandmark, b: NormalizedLandmark): NormalizedLandmark => ({
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+    z: (a.z + b.z) / 2,
+  });
+
+  // Head-roll correction: subtract face angle (right-eye center -> left-eye center)
+  // from each eye's own corner-tilt so we measure eye shape, not photo rotation.
+  const faceAngle = toAcute(
+    tiltDeg(
+      center(g(IDX.rightEyeInner), g(IDX.rightEyeOuter)),
+      center(g(IDX.leftEyeInner), g(IDX.leftEyeOuter)),
+    ),
+  );
+
+  const leftEyeAngle = toAcute(tiltDeg(g(IDX.leftEyeInner), g(IDX.leftEyeOuter)));
+  const rightEyeAngle = toAcute(tiltDeg(g(IDX.rightEyeInner), g(IDX.rightEyeOuter)));
+  const corrected = ((leftEyeAngle - faceAngle) + (rightEyeAngle - faceAngle)) / 2;
+  const tilt = Math.abs(corrected) > 20 ? 0 : -corrected;
 
   // ~5° positive tilt is the "almond / fox-eye" optimum in most rater datasets.
   const score = gaussianScore(tilt, 5, 6);
