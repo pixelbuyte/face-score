@@ -59,6 +59,8 @@ export type Metric = {
   explanation: string;
   /** Ideal target value (for "your value vs ideal" mini chart) */
   ideal: number;
+  /** True when a metric read was flagged as unreliable and excluded from composite scoring. */
+  excluded?: boolean;
 };
 
 export type ThirdsBreakdown = {
@@ -179,6 +181,11 @@ function angleDeg(a: NormalizedLandmark, b: NormalizedLandmark, c: NormalizedLan
 /** Signed tilt angle of a vector AB relative to the horizontal axis (degrees). */
 function tiltDeg(a: NormalizedLandmark, b: NormalizedLandmark): number {
   return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+}
+
+/** Normalize an angle to the [-180, 180) range. */
+function normalizeAngleDeg(angle: number): number {
+  return ((((angle + 180) % 360) + 360) % 360) - 180;
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
