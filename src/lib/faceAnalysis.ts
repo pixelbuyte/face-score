@@ -1,4 +1,11 @@
 import { FaceLandmarker, FilesetResolver, type NormalizedLandmark } from "@mediapipe/tasks-vision";
+import type { ConfidenceLevel, MetricKey } from "@/lib/metricConfidence";
+import {
+  aggregateHarmonyConfidence,
+  deriveMetricConfidences,
+  harmonyWeightedExcludingLow,
+} from "@/lib/metricConfidence";
+import { prepareLandmarksForMetrics, type LandmarkPoseDiagnostics } from "@/lib/facePoseNormalize";
 
 /**
  * Face Landmarker (MediaPipe Tasks Vision) returns 478 normalized 3D landmarks.
@@ -53,6 +60,8 @@ export type Metric = {
   raw: number;
   /** Normalized 0–100 "harmony" score for progress bars */
   score: number;
+  /** Confidence for the measurement (angle / pose / landmark stability). */
+  confidence?: ConfidenceLevel;
   /** Population reference (mean) for inline comparison charts */
   populationMean: number;
   /** Short, plain-language scientific explanation */
@@ -144,6 +153,12 @@ export type AnalysisResult = {
   percentileHint: number;
   /** Standard deviations above the population mean (negative = below). */
   sdAboveMean: number;
+  /** Pose diagnostics derived from landmarks (roll/yaw + a simple confidence score). */
+  pose: LandmarkPoseDiagnostics;
+  /** Per-metric confidence labels (used for badges and weighting). */
+  metricConfidence: Record<MetricKey, ConfidenceLevel>;
+  /** Overall confidence label for the harmony composite. */
+  harmonyConfidence: ConfidenceLevel;
   tips: string[];
   /** Names of the 3 weakest metrics, used to drive personalised tips. */
   weakest: string[];
@@ -494,6 +509,7 @@ export function computeMetrics(lm: NormalizedLandmark[]): FaceMetrics {
   const noseRatio = calcNoseRatio(lm);
   const lipFullness = calcLipFullness(lm);
 
+  // Harmony is now computed in analyzeFromLandmarks after confidence weighting.
   const harmony = calcHarmony({
     symmetry,
     thirdsBalance,
@@ -962,7 +978,42 @@ export function analyzeFromLandmarks(
   cropCanvas: HTMLCanvasElement,
   calibrationBoost = 0,
 ): AnalysisResult {
-  const metrics = computeMetrics(lm);
+  // Normalize pose (roll) before any geometry measurements.
+  const prepared = prepareLandmarksForMetrics(lm);
+  const metricsBase = computeMetrics(prepared.landmarks);
+
+  // Confidence labels + confidence-weighted harmony (drops low-confidence metrics).
+  const metricConfidence = deriveMetricConfidences(prepared.pose);
+  const harmonyScore = harmonyWeightedExcludingLow(
+    {
+      symmetry: metricsBase.symmetry,
+      thirdsBalance: metricsBase.thirdsBalance,
+      midfaceRatio: metricsBase.midfaceRatio,
+      canthalTilt: metricsBase.canthalTilt,
+      jawAngle: metricsBase.jawAngle,
+      eyeSpacing: metricsBase.eyeSpacing,
+      philtrumRatio: metricsBase.philtrumRatio,
+      noseRatio: metricsBase.noseRatio,
+      lipFullness: metricsBase.lipFullness,
+    },
+    metricConfidence,
+  );
+  const harmonyConfidence = aggregateHarmonyConfidence(metricConfidence);
+
+  const metrics: FaceMetrics = {
+    ...metricsBase,
+    symmetry: { ...metricsBase.symmetry, confidence: metricConfidence.symmetry },
+    thirdsBalance: { ...metricsBase.thirdsBalance, confidence: metricConfidence.thirdsBalance },
+    midfaceRatio: { ...metricsBase.midfaceRatio, confidence: metricConfidence.midfaceRatio },
+    canthalTilt: { ...metricsBase.canthalTilt, confidence: metricConfidence.canthalTilt },
+    jawAngle: { ...metricsBase.jawAngle, confidence: metricConfidence.jawAngle },
+    eyeSpacing: { ...metricsBase.eyeSpacing, confidence: metricConfidence.eyeSpacing },
+    philtrumRatio: { ...metricsBase.philtrumRatio, confidence: metricConfidence.philtrumRatio },
+    noseRatio: { ...metricsBase.noseRatio, confidence: metricConfidence.noseRatio },
+    lipFullness: { ...metricsBase.lipFullness, confidence: metricConfidence.lipFullness },
+    harmony: { ...metricsBase.harmony, score: harmonyScore, display: `${harmonyScore}%`, confidence: harmonyConfidence },
+  };
+
   const modelScorePlaceholder = computeDeterministicModelScore(cropCanvas, metrics.harmony.score);
   const overallScore = combineScores(metrics.harmony.score, modelScorePlaceholder, calibrationBoost);
   const percentileHint = percentileFromScore(overallScore);
@@ -978,6 +1029,9 @@ export function analyzeFromLandmarks(
     modelScorePlaceholder,
     percentileHint,
     sdAboveMean,
+    pose: prepared.pose,
+    metricConfidence,
+    harmonyConfidence,
     tips: buildTips(metrics, weakest),
     weakest,
     strongest,

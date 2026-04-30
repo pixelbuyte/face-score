@@ -4,6 +4,8 @@ import { persist } from "zustand/middleware";
 import { CALIBRATION_TARGET_VOTES } from "@/constants/calibration-faces";
 import type { AnalysisResult, FaceMetrics, Tier, TraitTier } from "@/lib/faceAnalysis";
 import { buildTraitTiers, tierFromScore } from "@/lib/faceAnalysis";
+import type { ConfidenceLevel, MetricKey } from "@/lib/metricConfidence";
+import type { LandmarkPoseDiagnostics } from "@/lib/facePoseNormalize";
 
 export type AppView = "home" | "calibrate" | "report" | "history";
 
@@ -114,6 +116,27 @@ export const useAppStore = create<State>()(
       openReport: (id) => {
         const r = get().reports.find((x) => x.id === id);
         if (!r) return;
+        const pose: LandmarkPoseDiagnostics = {
+          rollDeg: 0,
+          yawDeg: 0,
+          detectionConfidence: 0,
+          poseWarning: null,
+          severeYaw: false,
+        };
+        const metricConfidence = Object.fromEntries(
+          [
+            "symmetry",
+            "thirdsBalance",
+            "midfaceRatio",
+            "canthalTilt",
+            "jawAngle",
+            "eyeSpacing",
+            "philtrumRatio",
+            "noseRatio",
+            "lipFullness",
+          ].map((k) => [k, "high"] as const),
+        ) as Record<MetricKey, ConfidenceLevel>;
+
         // Re-hydrate `lastAnalysis` from the saved report (landmarks not persisted).
         set({
           view: "report",
@@ -124,6 +147,9 @@ export const useAppStore = create<State>()(
               modelScorePlaceholder: r.overallScore,
               percentileHint: r.percentileHint,
               sdAboveMean: r.sdAboveMean,
+              pose,
+              metricConfidence,
+              harmonyConfidence: "high",
               tips: r.tips,
               weakest: [],
               strongest: [],

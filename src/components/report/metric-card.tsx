@@ -29,6 +29,7 @@ export function MetricCard({ name, metric, icon: Icon, index = 0 }: Props) {
   const userPct = Math.min(100, Math.max(0, metric.score));
   const meanPct = Math.min(100, Math.max(0, metric.populationMean));
   const delta = userPct - meanPct;
+  const conf = metric.confidence ?? "high";
 
   return (
     <motion.div
@@ -52,18 +53,33 @@ export function MetricCard({ name, metric, icon: Icon, index = 0 }: Props) {
                 </p>
               </div>
             </div>
-            <span
-              className={[
-                "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                userPct >= 75
-                  ? "bg-emerald-500/15 text-emerald-300"
-                  : userPct >= 55
-                    ? "bg-violet-500/15 text-violet-200"
-                    : "bg-amber-500/15 text-amber-300",
-              ].join(" ")}
-            >
-              {bandLabel(userPct)}
-            </span>
+            <div className="flex flex-col items-end gap-1">
+              <span
+                className={[
+                  "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                  userPct >= 75
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : userPct >= 55
+                      ? "bg-violet-500/15 text-violet-200"
+                      : "bg-amber-500/15 text-amber-300",
+                ].join(" ")}
+              >
+                {bandLabel(userPct)}
+              </span>
+              <span
+                className={[
+                  "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                  conf === "high"
+                    ? "bg-emerald-500/12 text-emerald-200"
+                    : conf === "medium"
+                      ? "bg-amber-500/12 text-amber-200"
+                      : "bg-rose-500/12 text-rose-200",
+                ].join(" ")}
+                aria-label={`Confidence: ${conf}`}
+              >
+                {conf} confidence
+              </span>
+            </div>
           </div>
 
           {/* Score gauge */}
