@@ -5,6 +5,10 @@ import { Area, AreaChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } fro
 import { Button } from "@/components/ui/button";
 import { ALL_TIERS, nextTierDelta, type Tier } from "@/lib/faceAnalysis";
 import { asPercent, nextTierPlainParts, pointsVsTypical } from "@/lib/scorePlainLanguage";
+import { cn } from "@/lib/utils";
+
+/** Leaderboard order: highest tier (T9) first, lowest (T1) last — not dependent on array source order. */
+const LEADERBOARD_TIERS = [...ALL_TIERS].sort((a, b) => b.index - a.index);
 
 type TonePalette = {
   text: string;
@@ -79,24 +83,44 @@ const TONE: Record<Tier["color"], TonePalette> = {
 
 export function TierBadge({ tier, score }: { tier: Tier; score: number }) {
   const tone = TONE[tier.color];
+  const { delta, next } = nextTierDelta(score);
+  /** Whole points to next band (ceil so we never show 0 when still below the next min). */
+  const ptsUp = Math.ceil(Math.max(0, delta));
+  const nextLine =
+    next && ptsUp > 0 ? (
+      <p className="text-[11px] leading-snug text-foreground/65">
+        <span className="font-semibold text-emerald-200/95">
+          {ptsUp} {ptsUp === 1 ? "pt" : "pts"}
+        </span>{" "}
+        to reach{" "}
+        <span className={`font-semibold ${tone.text}`}>{next.short}</span>
+        <span className="text-foreground/45"> ({next.long})</span>
+      </p>
+    ) : (
+      <p className="text-[11px] leading-snug text-foreground/45">Highest tier — you&apos;re at the top of this scale.</p>
+    );
+
   return (
     <motion.div
       initial={{ scale: 0.94, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ delay: 0.1, type: "spring", stiffness: 220, damping: 18 }}
-      className={`inline-flex items-center gap-3 rounded-2xl border ${tone.border} bg-card/60 px-4 py-2.5 ring-1 ${tone.ring} ${tone.glow}`}
+      className={`inline-flex max-w-full flex-col gap-1.5 rounded-2xl border ${tone.border} bg-card/60 px-4 py-2.5 ring-1 ${tone.ring} ${tone.glow}`}
     >
-      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] ${tone.chip}`}>
-        {tier.code}
-      </span>
-      <div className="flex items-baseline gap-2">
-        <span className={`font-display text-base font-semibold ${tone.text}`}>{tier.short}</span>
-        <span className="text-[11px] text-foreground/55">{tier.long}</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] ${tone.chip}`}>
+          {tier.code}
+        </span>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-2">
+          <span className={`font-display text-base font-semibold ${tone.text}`}>{tier.short}</span>
+          <span className="text-[11px] text-foreground/55">{tier.long}</span>
+        </div>
+        <span className="text-[11px] text-foreground/55">
+          <span className="font-mono font-semibold text-white/90">{Math.round(score)}%</span>
+          <span className="text-foreground/45"> total</span>
+        </span>
       </div>
-      <span className="text-[11px] text-foreground/55">
-        <span className="font-mono font-semibold text-white/90">{Math.round(score)}%</span>
-        <span className="text-foreground/45"> total</span>
-      </span>
+      {nextLine}
     </motion.div>
   );
 }
@@ -415,55 +439,128 @@ function MethodRow({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Compact full-ladder list                                           */
+/*  Full tier ladder — best rank at top (leaderboard)                  */
 /* ------------------------------------------------------------------ */
 
-function FullLadder({ score, tier }: { score: number; tier: Tier }) {
+function FullLadder({
+  score,
+  tier,
+  percentile = 50,
+}: {
+  score: number;
+  tier: Tier;
+  /** “Higher than X%” — used with Top % display. */
+  percentile?: number;
+}) {
+  const topPct = Math.max(1, Math.min(99, 100 - Math.round(percentile)));
+
   return (
-    <ol className="space-y-1.5">
-      {ALL_TIERS.map((t) => {
-        const isActive = t.key === tier.key;
-        const tone = TONE[t.color];
-        const fill = isActive ? Math.min(100, ((score - t.min) / (t.max - t.min)) * 100) : 0;
-        return (
-          <li
-            key={t.key}
-            className={[
-              "relative grid grid-cols-[44px_minmax(0,1.4fr)_minmax(0,1fr)_56px] items-center gap-3 overflow-hidden rounded-xl border px-3 py-2 text-xs transition",
-              isActive
-                ? `${tone.border} bg-white/[0.05] ${tone.glow}`
-                : "border-white/[0.05] bg-white/[0.015]",
-            ].join(" ")}
-          >
-            <span
-              className={[
-                "rounded-md px-1.5 py-0.5 text-center text-[10px] font-bold tracking-wider",
-                isActive ? tone.chip : "bg-white/[0.05] text-foreground/55",
-              ].join(" ")}
-            >
-              {t.code}
-            </span>
-            <span className={`truncate font-medium ${isActive ? "text-white" : "text-foreground/65"}`}>
-              {t.short}
-            </span>
-            <div className="relative h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+    <div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-foreground/45">
+          Tier rankings
+        </p>
+        <p className="text-[10px] text-foreground/40">Best tier at top · {LEADERBOARD_TIERS.length} levels</p>
+      </div>
+      <ol className="list-none space-y-2" aria-label="Attractiveness tiers, best to lowest">
+        {LEADERBOARD_TIERS.map((t, leaderboardIdx) => {
+          const isActive = t.key === tier.key;
+          const tone = TONE[t.color];
+          const fill = isActive
+            ? Math.min(100, Math.max(0, ((score - t.min) / (t.max - t.min)) * 100))
+            : 0;
+          const rangeLabel = `${t.min}–${t.max - 1}%`;
+          /** #1 = best row (T9 at top). */
+          const rank = leaderboardIdx + 1;
+
+          return (
+            <li key={t.key} className="relative scroll-mt-4">
               {isActive && (
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${fill}%` }}
-                  transition={{ duration: 0.7, ease: "easeOut", delay: 0.15 }}
-                  className={`h-full rounded-full bg-gradient-to-r ${tone.bar}`}
-                  style={{ boxShadow: "0 0 14px rgba(167,139,250,0.45)" }}
-                />
+                <p className="mb-1.5 pl-0.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-violet-200/95">
+                  Your Tier
+                </p>
               )}
-            </div>
-            <span className="text-right font-mono text-[10px] text-foreground/45">
-              {t.min}–{t.max - 1}%
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+              <div
+                className={cn(
+                  "grid grid-cols-[28px_44px_minmax(0,1.4fr)_minmax(56px,0.9fr)_52px] items-center gap-1.5 rounded-xl border px-2 py-2 transition sm:grid-cols-[32px_48px_minmax(0,1.5fr)_minmax(64px,1fr)_56px] sm:gap-2 sm:px-2.5 md:grid-cols-[36px_52px_minmax(0,1.6fr)_minmax(72px,1.1fr)_minmax(0,120px)] md:gap-3 md:px-3",
+                  isActive
+                    ? cn(
+                        "relative border-2 py-3",
+                        tone.border,
+                        "bg-gradient-to-br from-white/[0.12] via-white/[0.06] to-violet-950/20",
+                        tone.glow,
+                        "shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] ring-2 ring-inset ring-white/15",
+                      )
+                    : "border-white/[0.06] bg-white/[0.02] py-2 hover:bg-white/[0.04]",
+                )}
+              >
+                <span
+                  className={cn(
+                    "text-center text-[9px] font-bold tabular-nums text-foreground/35 sm:text-[10px]",
+                    isActive && "text-foreground/55",
+                  )}
+                  title={`Leaderboard rank ${rank}`}
+                >
+                  #{rank}
+                </span>
+                <span
+                  className={cn(
+                    "rounded-md px-1 py-1 text-center font-bold tracking-wider",
+                    isActive ? cn("text-[11px]", tone.chip) : "bg-white/[0.05] text-[10px] text-foreground/50",
+                  )}
+                >
+                  {t.code}
+                </span>
+                <div className="min-w-0">
+                  <p
+                    className={cn(
+                      "truncate font-semibold leading-tight",
+                      isActive ? cn("font-display text-base md:text-lg", tone.text) : "text-[11px] text-foreground/60",
+                    )}
+                  >
+                    {t.short}
+                  </p>
+                  {isActive && <p className="mt-0.5 truncate text-[11px] text-foreground/50">{t.long}</p>}
+                </div>
+                <div className="min-h-[6px] w-full min-w-0">
+                  {isActive ? (
+                    <div className="relative h-2.5 overflow-hidden rounded-full bg-white/[0.1]">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${fill}%` }}
+                        transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1], delay: 0.12 }}
+                        className={cn("h-full rounded-full bg-gradient-to-r", tone.bar)}
+                        style={{ boxShadow: "0 0 20px rgba(192,132,252,0.65)" }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-px bg-white/[0.06]" aria-hidden />
+                  )}
+                </div>
+                <div className="text-right">
+                  <span
+                    className={cn(
+                      "block font-mono text-[9px] tabular-nums leading-tight sm:text-[10px]",
+                      isActive ? "text-foreground/80" : "text-foreground/35",
+                    )}
+                  >
+                    {rangeLabel}
+                  </span>
+                  {isActive && (
+                    <span className="mt-1 block text-[9px] leading-tight text-foreground/70 sm:text-[10px]">
+                      <span className="font-mono font-semibold text-white">{Math.round(score)}</span>
+                      <span className="text-foreground/45">/100</span>
+                      <span className="text-foreground/30"> · </span>
+                      <span className="font-medium text-violet-200/95">Top {topPct}%</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -561,12 +658,9 @@ export function AttractivenessTierCard({ score, tier, percentile, scrollTargetId
         <ActiveTierCallout score={score} tier={tier} percentile={percentile} />
       </div>
 
-      {/* Full ladder */}
+      {/* Full ladder — highest tier at top */}
       <div className="relative mb-6">
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground/45">
-          Full tier ladder
-        </p>
-        <FullLadder score={score} tier={tier} />
+        <FullLadder score={score} tier={tier} percentile={percentile} />
       </div>
 
       {/* Methodology */}
@@ -595,6 +689,6 @@ export function AttractivenessTierCard({ score, tier, percentile, scrollTargetId
 /*  Backward-compatible export — old name still works                  */
 /* ------------------------------------------------------------------ */
 
-export function TierLadder(props: { score: number; tier: Tier }) {
+export function TierLadder(props: { score: number; tier: Tier; percentile?: number }) {
   return <FullLadder {...props} />;
 }

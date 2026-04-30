@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import {
-  ArrowUp,
   ChevronLeft,
   Download,
   Eye,
@@ -30,7 +29,6 @@ import { AttractivenessTierCard, TierBadge } from "@/components/report/tier-ladd
 import { TraitTierGrid } from "@/components/report/trait-tier-grid";
 import { PRIVACY_LONG, PRIVACY_SHORT } from "@/constants/privacy";
 import type { FaceMetrics } from "@/lib/faceAnalysis";
-import { nextTierDelta } from "@/lib/faceAnalysis";
 import { useAppStore } from "@/store/use-app-store";
 
 function pct(n: number, lo = 0, hi = 100) {
@@ -73,7 +71,6 @@ export function ReportPage() {
   const vsTypicalPct = Math.round(overall - 58);
 
   const harmonyScore = metrics.harmony.score;
-  const { delta: ptsToNextTier, next: nextTier } = nextTierDelta(overall);
 
   const onSave = () => {
     saveReportFromLast();
